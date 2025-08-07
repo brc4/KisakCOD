@@ -781,31 +781,17 @@ void __cdecl Load_XAnimDynamicIndicesTrans(bool atStreamStart)
 {
     if (varXAnimParts->numframes >= 0x100u)
     {
-        if (!atStreamStart)
-            MyAssertHandler("c:\\trees\\cod3\\src\\database\\../xanim/xanim_load_db.h", 1550, 0, "%s", "atStreamStart");
+        iassert(atStreamStart);
         Load_Stream(1, varXAnimDynamicIndicesTrans->_1, 0);
-        if (DB_GetStreamPos() != (uint8_t *)varXAnimDynamicIndicesTrans)
-            MyAssertHandler(
-                "c:\\trees\\cod3\\src\\database\\../xanim/xanim_load_db.h",
-                1552,
-                0,
-                "%s",
-                "DB_GetStreamPos() == reinterpret_cast< byte * >( varXAnimDynamicIndicesTrans->_2 )");
+        iassert(DB_GetStreamPos() == reinterpret_cast< byte * >( varXAnimDynamicIndicesTrans->_2 ));
         varUnsignedShort = (uint16_t *)varXAnimDynamicIndicesTrans;
         Load_UnsignedShortArray(1, varXAnimPartTrans->size + 1);
     }
     else
     {
-        if (!atStreamStart)
-            MyAssertHandler("c:\\trees\\cod3\\src\\database\\../xanim/xanim_load_db.h", 1542, 0, "%s", "atStreamStart");
+        iassert(atStreamStart);
         Load_Stream(1, varXAnimDynamicIndicesTrans->_1, 0);
-        if (DB_GetStreamPos() != (uint8_t *)varXAnimDynamicIndicesTrans)
-            MyAssertHandler(
-                "c:\\trees\\cod3\\src\\database\\../xanim/xanim_load_db.h",
-                1544,
-                0,
-                "%s",
-                "DB_GetStreamPos() == reinterpret_cast< byte * >( varXAnimDynamicIndicesTrans->_1 )");
+        iassert(DB_GetStreamPos() == reinterpret_cast< byte * >( varXAnimDynamicIndicesTrans->_1 ));
         varbyte = (uint8_t *)varXAnimDynamicIndicesTrans;
         Load_byteArray(1, varXAnimPartTrans->size + 1);
     }
@@ -848,16 +834,9 @@ void __cdecl Load_XAnimDynamicFrames()
 
 void __cdecl Load_XAnimPartTransFrames(bool atStreamStart)
 {
-    if (!atStreamStart)
-        MyAssertHandler("c:\\trees\\cod3\\src\\database\\../xanim/xanim_load_db.h", 1784, 0, "%s", "atStreamStart");
+    iassert(atStreamStart);
     Load_Stream(1, (uint8_t *)varXAnimPartTransFrames, 28);
-    if (DB_GetStreamPos() != (uint8_t *)&varXAnimPartTransFrames->indices)
-        MyAssertHandler(
-            "c:\\trees\\cod3\\src\\database\\../xanim/xanim_load_db.h",
-            1786,
-            0,
-            "%s",
-            "DB_GetStreamPos() == reinterpret_cast< byte * >( &varXAnimPartTransFrames->indices )");
+    iassert(DB_GetStreamPos() == reinterpret_cast< byte * >( &varXAnimPartTransFrames->indices ));
     varXAnimDynamicIndicesTrans = &varXAnimPartTransFrames->indices;
     Load_XAnimDynamicIndicesTrans(1);
     varXAnimDynamicFrames = &varXAnimPartTransFrames->frames;
@@ -880,16 +859,9 @@ void __cdecl Load_XAnimPartTransData(bool atStreamStart)
 
 void __cdecl Load_XAnimPartTrans(bool atStreamStart)
 {
-    if (!atStreamStart)
-        MyAssertHandler("c:\\trees\\cod3\\src\\database\\../xanim/xanim_load_db.h", 1923, 0, "%s", "atStreamStart");
+    iassert(atStreamStart);
     Load_Stream(1, (uint8_t *)varXAnimPartTrans, 4);
-    if (DB_GetStreamPos() != (uint8_t *)&varXAnimPartTrans->u)
-        MyAssertHandler(
-            "c:\\trees\\cod3\\src\\database\\../xanim/xanim_load_db.h",
-            1925,
-            0,
-            "%s",
-            "DB_GetStreamPos() == reinterpret_cast< byte * >( &varXAnimPartTrans->u )");
+    iassert(DB_GetStreamPos() == reinterpret_cast< byte * >( &varXAnimPartTrans->u ));
     varXAnimPartTransData = &varXAnimPartTrans->u;
     Load_XAnimPartTransData(1);
 }
@@ -1356,8 +1328,7 @@ void __cdecl Load_SndAliasCustom(snd_alias_list_t **var)
     {
         varXStringPtr = (const char ***)var;
         Load_XStringPtr(0);
-        if (!*varXStringPtr)
-            MyAssertHandler(".\\universal\\com_sndalias.cpp", 696, 0, "%s", "*varXStringPtr");
+        iassert(*varXStringPtr);
         *(XAssetHeader *)var = DB_FindXAssetHeader(ASSET_TYPE_SOUND, **varXStringPtr);
     }
 }
@@ -1723,17 +1694,10 @@ void __cdecl Load_GfxRawTextureArray(bool atStreamStart, int32_t count)
 
 void __cdecl Load_GfxImageLoadDef(bool atStreamStart)
 {
-    if (!atStreamStart)
-        MyAssertHandler("c:\\trees\\cod3\\src\\database\\../gfx_d3d/r_image_load_db.h", 2614, 0, "%s", "atStreamStart");
+    iassert(atStreamStart);
     iassert(OFFSET_TO_GfxImageLoadDef_DATA == 16);
     Load_Stream(1, (unsigned char*)varGfxImageLoadDef, 16);
-    if (DB_GetStreamPos() != varGfxImageLoadDef->data)
-        MyAssertHandler(
-            "c:\\trees\\cod3\\src\\database\\../gfx_d3d/r_image_load_db.h",
-            2616,
-            0,
-            "%s",
-            "DB_GetStreamPos() == reinterpret_cast< byte * >( varGfxImageLoadDef->data )");
+    iassert(DB_GetStreamPos() == reinterpret_cast< byte * >( varGfxImageLoadDef->data ));
     varbyte = &varGfxImageLoadDef->data[0];
     Load_byteArray(1, varGfxImageLoadDef->resourceSize);
 }
@@ -2041,16 +2005,9 @@ void __cdecl Load_MaterialPassArray(bool atStreamStart, int32_t count)
 
 void __cdecl Load_MaterialTechnique(bool atStreamStart)
 {
-    if (!atStreamStart)
-        MyAssertHandler("c:\\trees\\cod3\\src\\database\\../gfx_d3d/r_material_load_db.h", 5470, 0, "%s", "atStreamStart");
+    iassert(atStreamStart);
     Load_Stream(1, (uint8_t *)varMaterialTechnique, 8); // 0x2668
-    if (DB_GetStreamPos() != (uint8_t *)varMaterialTechnique->passArray)
-        MyAssertHandler(
-            "c:\\trees\\cod3\\src\\database\\../gfx_d3d/r_material_load_db.h",
-            5472,
-            0,
-            "%s",
-            "DB_GetStreamPos() == reinterpret_cast< byte * >( varMaterialTechnique->passArray )");
+    iassert(DB_GetStreamPos() == reinterpret_cast< byte * >( varMaterialTechnique->passArray ));
     varMaterialPass = (MaterialPass*)&varMaterialTechnique->passArray[0].vertexDecl;
     Load_MaterialPassArray(1, varMaterialTechnique->passCount); // 0x2990
     varXString = &varMaterialTechnique->name;

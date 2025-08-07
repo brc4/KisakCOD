@@ -27,6 +27,12 @@
 #include <setjmp.h>
 #include <game/g_bsp.h>
 
+#define MODS_BASE_PATH "mods"
+#define MODS_BASE_PATH_LENGTH sizeof("mods")
+
+#define REORDER_WEAPON_PREFIX "mp/"
+#define REORDER_WEAPON_PREFIX_LEN sizeof(REORDER_WEAPON_PREFIX)
+
 GfxWorld s_world;
 MaterialGlobals materialGlobals;
 ImgGlobals imageGlobals;
@@ -344,6 +350,16 @@ const dvar_t *zone_reorder;
 volatile uint32_t g_loadingAssets;
 XZoneInfoInternal g_zoneInfo[8];
 
+bool __cdecl IsUsingMods()
+{
+    return *fs_gameDirVar->current.string;
+}
+
+bool __cdecl IsFastFileLoad()
+{
+    return useFastFile->current.enabled;
+}
+
 char *__cdecl DB_ReferencedFFChecksums()
 {
     int32_t v0; // kr00_4
@@ -381,33 +397,13 @@ char *__cdecl DB_ReferencedFFNameList()
                 I_strncat(g_zoneNameList, 2080, " ");
             if (g_zones[i].modZone)
             {
-                I_strncat(g_zoneNameList, 2080, (const char*)fs_gameDirVar->current.integer);
+                I_strncat(g_zoneNameList, 2080, fs_gameDirVar->current.string);
                 I_strncat(g_zoneNameList, 2080, "/");
             }
             I_strncat(g_zoneNameList, 2080, g_zones[i].name);
         }
     }
     return g_zoneNameList;
-}
-
-void __cdecl Hunk_OverrideDataForFile(int32_t type, const char *name, void *data)
-{
-    fileData_s *searchFileData; // [esp+4h] [ebp-4h]
-
-    if (!Sys_IsMainThread())
-        MyAssertHandler(".\\universal\\com_memory.cpp", 1539, 0, "%s", "Sys_IsMainThread()");
-    for (searchFileData = com_fileDataHashTable[FS_HashFileName(name, 1024)];
-        searchFileData;
-        searchFileData = searchFileData->next)
-    {
-        if (searchFileData->type == type && !I_stricmp(searchFileData->name, name))
-        {
-            searchFileData->data = data;
-            return;
-        }
-    }
-    if (!alwaysfails)
-        MyAssertHandler(".\\universal\\com_memory.cpp", 1554, 0, "Hunk_OverrideDataForFile: could not find data");
 }
 
 void __cdecl DB_InitPool_RawFile_(void *arg, int32_t size)
@@ -688,8 +684,7 @@ void __cdecl DB_BuildOSPath_Mod(const char *zoneName, uint32_t size, char *filen
     char *v3; // eax
     const char *string; // [esp-8h] [ebp-8h]
 
-    if (!*(_BYTE *)fs_gameDirVar->current.integer)
-        MyAssertHandler(".\\database\\db_registry.cpp", 3204, 0, "%s", "IsUsingMods()");
+    iassert(IsUsingMods());
     string = fs_gameDirVar->current.string;
     v3 = Sys_DefaultInstallPath();
     Com_sprintf(filename, size, "%s\\%s\\%s.ff", v3, string, zoneName);
@@ -700,7 +695,7 @@ bool __cdecl DB_ModFileExists()
     char filename[256]; // [esp+0h] [ebp-108h] BYREF
     void *zoneFile; // [esp+104h] [ebp-4h]
 
-    if (!*(_BYTE *)fs_gameDirVar->current.integer)
+    if (!IsUsingMods())
         return 0;
     DB_BuildOSPath_Mod("mod", 0x100u, filename);
     zoneFile = CreateFileA(filename, 0x80000000, 1u, 0, 3u, 0x60000000u, 0);
@@ -719,20 +714,11 @@ void __cdecl DB_EndRecoverLostDevice()
         NET_Sleep(0);
     for (zoneIter = 0; zoneIter < g_zoneCount; ++zoneIter)
         DB_RecoverGeometryBuffers(&g_zones[g_zoneHandles[zoneIter]].mem);
-    if (db_hashCritSect.readCount <= 0)
-        MyAssertHandler(
-            "c:\\trees\\cod3\\src\\gfx_d3d\\../qcommon/threads_interlock.h",
-            76,
-            0,
-            "%s",
-            "critSect->readCount > 0");
+    iassert(db_hashCritSect.readCount > 0);
     InterlockedDecrement(&db_hashCritSect.readCount);
-    if (!Sys_IsMainThread())
-        MyAssertHandler(".\\database\\db_registry.cpp", 2929, 0, "%s", "Sys_IsMainThread()");
-    if (!g_isRecoveringLostDevice)
-        MyAssertHandler(".\\database\\db_registry.cpp", 2930, 0, "%s", "g_isRecoveringLostDevice");
-    if (!g_mayRecoverLostAssets)
-        MyAssertHandler(".\\database\\db_registry.cpp", 2931, 0, "%s", "g_mayRecoverLostAssets");
+    iassert(Sys_IsMainThread());
+    iassert(g_isRecoveringLostDevice);
+    iassert(g_mayRecoverLostAssets);
     g_mayRecoverLostAssets = !g_loadingZone;
     g_isRecoveringLostDevice = 0;
 }
@@ -741,10 +727,8 @@ void __cdecl DB_BeginRecoverLostDevice()
 {
     int32_t zoneIter; // [esp+4h] [ebp-4h]
 
-    if (!Sys_IsMainThread())
-        MyAssertHandler(".\\database\\db_registry.cpp", 2896, 0, "%s", "Sys_IsMainThread()");
-    if (g_isRecoveringLostDevice)
-        MyAssertHandler(".\\database\\db_registry.cpp", 2897, 0, "%s", "!g_isRecoveringLostDevice");
+    iassert(Sys_IsMainThread());
+    iassert(g_isRecoveringLostDevice);
     g_isRecoveringLostDevice = 1;
     while (!g_mayRecoverLostAssets)
         NET_Sleep(0);
@@ -753,20 +737,13 @@ void __cdecl DB_BeginRecoverLostDevice()
         NET_Sleep(0);
     for (zoneIter = 0; zoneIter < g_zoneCount; ++zoneIter)
         DB_ReleaseGeometryBuffers(&g_zones[g_zoneHandles[zoneIter]].mem);
-    if (db_hashCritSect.readCount <= 0)
-        MyAssertHandler(
-            "c:\\trees\\cod3\\src\\gfx_d3d\\../qcommon/threads_interlock.h",
-            76,
-            0,
-            "%s",
-            "critSect->readCount > 0");
+    iassert(db_hashCritSect.readCount > 0);
     InterlockedDecrement(&db_hashCritSect.readCount);
 }
 
 void __cdecl DB_InitSingleton(void *pool, int32_t size)
 {
-    if (size != 1)
-        MyAssertHandler(".\\database\\db_registry.cpp", 528, 0, "%s\n\t(size) = %i", "(size == 1)", size);
+    vassert((size == 1), "(size) == %i", size);
 }
 
 void __cdecl Load_PhysPresetAsset(XAssetHeader *physPreset)
@@ -1140,19 +1117,13 @@ void __cdecl DB_EnumXAssets_FastFile(
             }
         }
     }
-    if (db_hashCritSect.readCount <= 0)
-        MyAssertHandler(
-            "c:\\trees\\cod3\\src\\gfx_d3d\\../qcommon/threads_interlock.h",
-            76,
-            0,
-            "%s",
-            "critSect->readCount > 0");
+    iassert(db_hashCritSect.readCount > 0);
     InterlockedDecrement(&db_hashCritSect.readCount);
 }
 
 int32_t __cdecl DB_GetAllXAssetOfType(XAssetType type, XAssetHeader* assets, int32_t maxCount)
 {
-    if (useFastFile->current.enabled)
+    if (IsFastFileLoad())
         return DB_GetAllXAssetOfType_FastFile(type, assets, maxCount);
     else
         return DB_GetAllXAssetOfType_LoadObj(type, assets, maxCount);
@@ -1175,7 +1146,7 @@ void __cdecl DB_EnumXAssets(
     void* inData,
     bool includeOverride)
 {
-    if (useFastFile->current.enabled)
+    if (IsFastFileLoad())
         DB_EnumXAssets_FastFile(type, func, inData, includeOverride);
     else
         DB_EnumXAssets_LoadObj(type, (void(*)(void *, void *))func, inData);
@@ -1271,8 +1242,7 @@ XAssetHeader __cdecl DB_FindXAssetHeader(XAssetType type, const char *name)
     XAssetEntry *assetEntry; // [esp+18h] [ebp-8h]
     XAssetEntry *newEntry; // [esp+1Ch] [ebp-4h]
 
-    if (!useFastFile->current.enabled)
-        MyAssertHandler(".\\database\\db_registry.cpp", 2691, 0, "%s", "IsFastFileLoad()");
+    assert(IsFastFileLoad());
     start = 0;
     while (1)
     {
@@ -1282,13 +1252,7 @@ XAssetHeader __cdecl DB_FindXAssetHeader(XAssetType type, const char *name)
             while (db_hashCritSect.writeCount)
                 NET_Sleep(0);
             assetEntry = &DB_FindXAssetEntry(type, name)->entry;
-            if (db_hashCritSect.readCount <= 0)
-                MyAssertHandler(
-                    "c:\\trees\\cod3\\src\\gfx_d3d\\../qcommon/threads_interlock.h",
-                    76,
-                    0,
-                    "%s",
-                    "critSect->readCount > 0");
+            iassert(db_hashCritSect.readCount > 0);
             InterlockedDecrement(&db_hashCritSect.readCount);
             DB_RegisteredReorderAsset(type, name, assetEntry);
             if (assetEntry && (assetEntry->zoneIndex || Sys_IsDatabaseReady2()))
@@ -1329,8 +1293,7 @@ LABEL_39:
     if (assetEntry)
     {
     returnAsset:
-        if (!assetEntry->asset.header.xmodelPieces)
-            MyAssertHandler(".\\database\\db_registry.cpp", 2716, 0, "%s", "assetEntry->asset.header.data");
+        iassert(assetEntry->asset.header.data);
         assetEntry->inuse = 1;
         if (start)
         {
@@ -1345,8 +1308,7 @@ LABEL_39:
     assetEntry = &DB_FindXAssetEntry(type, name)->entry;
     if (assetEntry)
     {
-        if (!assetEntry->asset.header.xmodelPieces)
-            MyAssertHandler(".\\database\\db_registry.cpp", 2774, 0, "%s", "assetEntry->asset.header.data");
+        iassert(assetEntry->asset.header.data);
         Sys_UnlockWrite(&db_hashCritSect);
         goto returnAsset;
     }
@@ -1800,8 +1762,7 @@ void __cdecl PrintWaitedError(XAssetType type, const char *name, int32_t waitedM
 
 void __cdecl DB_Update()
 {
-    if (!Sys_IsMainThread())
-        MyAssertHandler(".\\database\\db_registry.cpp", 2805, 0, "%s", "Sys_IsMainThread()");
+    iassert(Sys_IsMainThread());
     if (!Sys_IsDatabaseReady2())
     {
         if (Sys_IsDatabaseReady())
@@ -1838,20 +1799,14 @@ bool __cdecl DB_IsXAssetDefault(XAssetType type, const char *name)
             XAssetName = DB_GetXAssetName(&assetEntry->entry.asset);
             if (!I_stricmp(XAssetName, name))
             {
-                if (db_hashCritSect.readCount <= 0)
-                    MyAssertHandler(
-                        "c:\\trees\\cod3\\src\\gfx_d3d\\../qcommon/threads_interlock.h",
-                        76,
-                        0,
-                        "%s",
-                        "critSect->readCount > 0");
+                iassert(db_hashCritSect.readCount > 0);
                 InterlockedDecrement(&db_hashCritSect.readCount);
                 return assetEntry->entry.zoneIndex == 0;
             }
         }
     }
     if (!alwaysfails)
-        MyAssertHandler(".\\database\\db_registry.cpp", 2849, 0, "unreachable");
+        MyAssertHandler(__FILE__, __LINE__, 0, "unreachable");
     return 1;
 }
 
@@ -1875,21 +1830,14 @@ int32_t __cdecl DB_GetAllXAssetOfType_FastFile(XAssetType type, XAssetHeader *as
             {
                 if (assets)
                 {
-                    if (assetCount >= maxCount)
-                        MyAssertHandler(".\\database\\db_registry.cpp", 2877, 0, "%s", "assetCount < maxCount");
+                    iassert(assetCount < maxCount);
                     assets[assetCount] = assetEntry->entry.asset.header;
                 }
                 ++assetCount;
             }
         }
     }
-    if (db_hashCritSect.readCount <= 0)
-        MyAssertHandler(
-            "c:\\trees\\cod3\\src\\gfx_d3d\\../qcommon/threads_interlock.h",
-            76,
-            0,
-            "%s",
-            "critSect->readCount > 0");
+    iassert(db_hashCritSect.readCount > 0);
     InterlockedDecrement(&db_hashCritSect.readCount);
     return assetCount;
 }
@@ -1898,14 +1846,12 @@ void DB_SyncLostDevice()
 {
     if (g_isRecoveringLostDevice)
     {
-        if (g_mayRecoverLostAssets)
-            MyAssertHandler(".\\database\\db_registry.cpp", 2945, 0, "%s", "!g_mayRecoverLostAssets");
+        iassert(!g_mayRecoverLostAssets);
         g_mayRecoverLostAssets = 1;
         do
             NET_Sleep(0x19u);
         while (g_isRecoveringLostDevice);
-        if (g_mayRecoverLostAssets)
-            MyAssertHandler(".\\database\\db_registry.cpp", 2951, 0, "%s", "!g_mayRecoverLostAssets");
+        iassert(!g_mayRecoverLostAssets);
     }
 }
 
@@ -2021,8 +1967,7 @@ XAssetEntryPoolEntry *__cdecl DB_LinkXAssetEntry(XAssetEntryPoolEntry *newEntry,
     LABEL_46:
         if (allowOverride)
         {
-            if (!existingEntry->entry.zoneIndex)
-                MyAssertHandler(".\\database\\db_registry.cpp", 3096, 0, "%s", "existingEntry->zoneIndex");
+            iassert(existingEntry->entry.zoneIndex);
             if (existingEntry->entry.inuse)
             {
                 varXAsset = &existingEntry->entry.asset;
@@ -2153,10 +2098,8 @@ void __cdecl DB_DelayedCloneXAsset(XAssetEntry *newEntry)
 
 bool __cdecl DB_OverrideAsset(uint32_t newZoneIndex, uint32_t existingZoneIndex)
 {
-    if (!newZoneIndex)
-        MyAssertHandler(".\\database\\db_registry.cpp", 2959, 0, "%s", "newZoneIndex");
-    if (!existingZoneIndex)
-        MyAssertHandler(".\\database\\db_registry.cpp", 2960, 0, "%s", "existingZoneIndex");
+    iassert(newZoneIndex);
+    iassert(existingZoneIndex);
     return g_zones[newZoneIndex].flags >= g_zones[existingZoneIndex].flags;
 }
 
@@ -2248,8 +2191,7 @@ void __cdecl DB_UpdateDebugZone()
 
 void __cdecl DB_SyncXAssets()
 {
-    if (!Sys_IsMainThread())
-        MyAssertHandler(".\\database\\db_registry.cpp", 3386, 0, "%s", "Sys_IsMainThread()");
+    iassert(Sys_IsMainThread());
     R_BeginRemoteScreenUpdate();
     Sys_SyncDatabase();
     R_EndRemoteScreenUpdate();
@@ -2266,10 +2208,8 @@ void __cdecl DB_LoadXAssets(XZoneInfo *zoneInfo, uint32_t zoneCount, int32_t syn
     int32_t i; // [esp+10h] [ebp-8h]
     int32_t zoneFreeFlags; // [esp+14h] [ebp-4h]
 
-    if (!Sys_IsMainThread())
-        MyAssertHandler(".\\database\\db_registry.cpp", 3411, 0, "%s", "Sys_IsMainThread()");
-    if (!zoneCount)
-        MyAssertHandler(".\\database\\db_registry.cpp", 3412, 0, "%s", "zoneCount");
+    iassert(Sys_IsMainThread());
+    iassert(zoneCount);
     if (!g_zoneInited)
     {
         g_zoneInited = 1;
@@ -2279,8 +2219,7 @@ void __cdecl DB_LoadXAssets(XZoneInfo *zoneInfo, uint32_t zoneCount, int32_t syn
     unloadedZone = 0;
     Material_ClearShaderUploadList();
     DB_SyncXAssets();
-    if (g_archiveBuf)
-        MyAssertHandler(".\\database\\db_registry.cpp", 3439, 0, "%s", "!g_archiveBuf");
+    iassert(!g_archiveBuf);
     for (j = 0; j < zoneCount; ++j)
     {
         zoneFreeFlags = zoneInfo[j].freeFlags;
@@ -2406,14 +2345,7 @@ void __cdecl  DB_Thread(uint32_t threadContext)
 {
     jmp_buf *Value; // eax
 
-    if (threadContext != 6)
-        MyAssertHandler(
-            ".\\database\\db_registry.cpp",
-            3790,
-            0,
-            "threadContext == THREAD_CONTEXT_DATABASE\n\t%i, %i",
-            threadContext,
-            6);
+    iassert(threadContext == THREAD_CONTEXT_DATABASE);
     Value = (jmp_buf *)Sys_GetValue(2);
     if (_setjmp(*Value))
     {
@@ -2442,25 +2374,22 @@ void DB_TryLoadXFile()
     {
         zoneInfoCount = g_zoneInfoCount;
         g_zoneInfoCount = 0;
-        if (g_loadingZone)
-            MyAssertHandler(".\\database\\db_registry.cpp", 3764, 0, "%s", "!g_loadingZone");
+        iassert(!g_loadingZone);
         for (j = 0; j < zoneInfoCount; ++j)
         {
             if (!DB_TryLoadXFileInternal(g_zoneInfo[j].name, g_zoneInfo[j].flags))
                 --g_loadingAssets;
         }
-        if (g_loadingZone)
-            MyAssertHandler(".\\database\\db_registry.cpp", 3772, 0, "%s", "!g_loadingZone");
-        if (g_loadingAssets)
-            MyAssertHandler(".\\database\\db_registry.cpp", 3773, 0, "%s", "!g_loadingAssets");
+        iassert(!g_loadingZone);
+        iassert(!g_loadingAssets);
         Sys_LockWrite(&s_dbReorder.critSect);
         DB_EndReorderZone();
         Sys_UnlockWrite(&s_dbReorder.critSect);
         Sys_DatabaseCompleted();
     }
-    else if (g_loadingAssets)
+    else
     {
-        MyAssertHandler(".\\database\\db_registry.cpp", 3759, 0, "%s", "!g_loadingAssets");
+        iassert(!g_loadingAssets);
     }
 }
 
@@ -2520,13 +2449,7 @@ void __cdecl DB_AddReorderAsset(const char *typeString, const char *assetName)
     if (type == 23)
     {
         //if (strnicmp(assetName, "mp/", 3u))
-        if (_strnicmp(assetName, "mp/", 3u))
-            MyAssertHandler(
-                ".\\database\\db_registry.cpp",
-                1911,
-                0,
-                "%s",
-                "!strnicmp( assetName, REORDER_WEAPON_PREFIX, REORDER_WEAPON_PREFIX_LEN )");
+        iassert(!strnicmp(assetName, REORDER_WEAPON_PREFIX, REORDER_WEAPON_PREFIX_LEN));
         assetName += 3;
     }
     for (entryIter = 0; entryIter < s_dbReorder.entryCount; ++entryIter)
@@ -2644,8 +2567,7 @@ char __cdecl DB_ShouldLoadFromModDir(const char *zoneName)
     const char *strPos; // [esp+0h] [ebp-8h]
     int32_t i; // [esp+4h] [ebp-4h]
 
-    if (!zoneName)
-        MyAssertHandler(".\\database\\db_registry.cpp", 3523, 0, "%s", "zoneName");
+    iassert(zoneName);
     if (com_sv_running->current.enabled)
         return 1;
     if (!fs_numServerReferencedFFs)
@@ -2656,21 +2578,14 @@ char __cdecl DB_ShouldLoadFromModDir(const char *zoneName)
     {
         if (i >= fs_numServerReferencedFFs)
             return 0;
-        if (!fs_serverReferencedFFNames[i])
-            MyAssertHandler(".\\database\\db_registry.cpp", 3536, 0, "%s", "fs_serverReferencedFFNames[i]");
+        iassert(fs_serverReferencedFFNames[i]);
         strPos = I_stristr(fs_serverReferencedFFNames[i], zoneName);
         if (strPos)
             break;
     }
     if (strPos <= fs_serverReferencedFFNames[i])
         return 0;
-    if (!I_strncmp(fs_serverReferencedFFNames[i], "mods", 4))
-        MyAssertHandler(
-            ".\\database\\db_registry.cpp",
-            3543,
-            0,
-            "%s",
-            "I_strncmp( fs_serverReferencedFFNames[i], MODS_BASE_PATH, MODS_BASE_PATH_LENGTH )");
+    iassert(I_strncmp( fs_serverReferencedFFNames[i], MODS_BASE_PATH, MODS_BASE_PATH_LENGTH ));
     return 1;
 }
 
@@ -2692,7 +2607,7 @@ int32_t __cdecl DB_TryLoadXFileInternal(char *zoneName, int32_t zoneFlags)
     iassert(!g_zoneInfoCount);
     if (I_stricmp(zoneName, "mp_patch"))
     {
-        if (*(_BYTE *)fs_gameDirVar->current.integer && DB_ShouldLoadFromModDir(zoneName))
+        if (IsUsingMods() && DB_ShouldLoadFromModDir(zoneName))
         {
             DB_BuildOSPath_Mod(zoneName, 256, filename);
             zoneFile = CreateFileA(filename, 0x80000000, 1u, 0, 3u, 0x60000000u, 0);
@@ -2748,10 +2663,8 @@ int32_t __cdecl DB_TryLoadXFileInternal(char *zoneName, int32_t zoneFlags)
                 break;
             }
         }
-        if (!g_zoneIndex)
-            MyAssertHandler(".\\database\\db_registry.cpp", 3667, 0, "%s", "g_zoneIndex");
-        if (!*zoneName)
-            MyAssertHandler(".\\database\\db_registry.cpp", 3668, 0, "%s", "zoneName[0]");
+        iassert(g_zoneIndex);
+        iassert(zoneName[0]);
         zone = &g_zones[g_zoneIndex];
         memset(zone, 0, sizeof(XZone));
         //v5 = g_zoneIndex;
@@ -2764,14 +2677,12 @@ int32_t __cdecl DB_TryLoadXFileInternal(char *zoneName, int32_t zoneFlags)
                 g_zoneIndex,
                 (uint8_t)g_zoneIndex);
         g_zoneHandles[g_zoneCount] = g_zoneIndex;
-        if (zone->name[0])
-            MyAssertHandler(".\\database\\db_registry.cpp", 3674, 0, "%s", "!zone->name[0]");
+        iassert(!zone->name[0]);
         I_strncpyz(zone->name, zoneName, 64);
         zone->flags = zoneFlags;
         zone->fileSize = GetFileSize(zoneFile, 0);
         zone->modZone = modZone;
-        if (g_loadingZone)
-            MyAssertHandler(".\\database\\db_registry.cpp", 3683, 0, "%s", "!g_loadingZone");
+        iassert(!g_loadingZone);
         if ((_S1 & 1) == 0)
         {
             _S1 |= 1u;
@@ -2801,13 +2712,11 @@ int32_t __cdecl DB_TryLoadXFileInternal(char *zoneName, int32_t zoneFlags)
         PMem_BeginAlloc(zone->name, g_zoneAllocType);
         zone->allocType = g_zoneAllocType;
         DB_ResetZoneSize((zoneFlags & 8) != 0);
-        if (!zone)
-            MyAssertHandler(".\\database\\db_registry.cpp", 3718, 0, "%s", "zone");
+        iassert(zone);
         DB_LoadXFile(filename, zoneFile, zone->name, &zone->mem, 0, g_fileBuf, g_zoneAllocType);
         DB_LoadXFileInternal();
         PMem_EndAlloc(zone->name, g_zoneAllocType);
-        if (!g_loadingZone)
-            MyAssertHandler(".\\database\\db_registry.cpp", 3725, 0, "%s", "g_loadingZone");
+        iassert(g_loadingZone);
         g_loadingZone = 0;
         g_mayRecoverLostAssets = 1;
         return 1;
@@ -2856,8 +2765,7 @@ void __cdecl DB_UnloadXZone(uint32_t zoneIndex, bool createDefault)
     uint16_t *pOverrideAssetEntryIndex; // [esp+24h] [ebp-8h]
     uint32_t overrideAssetEntryIndex; // [esp+28h] [ebp-4h]
 
-    if (!zoneIndex)
-        MyAssertHandler(".\\database\\db_registry.cpp", 3839, 0, "%s", "zoneIndex");
+    iassert(zoneIndex);
     hash = 0;
 LABEL_4:
     if (hash < 0x8000)
@@ -2881,8 +2789,7 @@ LABEL_4:
                 while (*pOverrideAssetEntryIndex)
                 {
                     overrideAssetEntry = &g_assetEntryPool[*pOverrideAssetEntryIndex];
-                    if (overrideAssetEntry->entry.inuse)
-                        MyAssertHandler(".\\database\\db_registry.cpp", 3908, 0, "%s", "!overrideAssetEntry->inuse");
+                    iassert(!overrideAssetEntry->entry.inuse);
                     if (overrideAssetEntry->entry.zoneIndex == zoneIndex)
                     {
                         DB_RemoveXAsset(&overrideAssetEntry->entry.asset);
@@ -2924,8 +2831,7 @@ LABEL_4:
                     DB_SetXAssetName(&assetEntry->asset, name);
                     goto LABEL_24;
                 }
-                if (assetEntry->nextOverride)
-                    MyAssertHandler(".\\database\\db_registry.cpp", 3874, 0, "%s", "!assetEntry->nextOverride");
+                iassert(!assetEntry->nextOverride);
                 *pAssetEntryIndex = assetEntry->nextHash;
                 DB_FreeXAssetEntry((XAssetEntryPoolEntry *)assetEntry);
                 if (*g_defaultAssetName[asset.type])

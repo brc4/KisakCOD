@@ -1,5 +1,7 @@
 #pragma once
 
+#define PHYS_ALLOC_HIGH 1
+
 struct PhysicalMemoryAllocation // sizeof=0x8
 {                                       // ...
     const char *name;                   // ...

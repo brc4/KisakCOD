@@ -97,13 +97,7 @@ uint8_t *__cdecl DB_AllocStreamPos(int32_t alignment)
 void __cdecl DB_IncStreamPos(int32_t size)
 {
     iassert(g_streamPos);
-    if (&g_streamPos[size] > &g_streamZoneMem->blocks[g_streamPosIndex].data[g_streamZoneMem->blocks[g_streamPosIndex].size])
-        MyAssertHandler(
-            ".\\database\\db_stream.cpp",
-            135,
-            0,
-            "%s",
-            "g_streamPos + size <= g_streamZoneMem->blocks[g_streamPosIndex].data + g_streamZoneMem->blocks[g_streamPosIndex].size");
+    iassert(g_streamPos + size <= g_streamZoneMem->blocks[g_streamPosIndex].data + g_streamZoneMem->blocks[g_streamPosIndex].size);
     g_streamPos += size;
 }
 

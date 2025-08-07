@@ -218,18 +218,11 @@ const char *__cdecl DB_GetXAssetHeaderName(int32_t type, const XAssetHeader *hea
     const char *v2; // eax
     const char *name; // [esp+0h] [ebp-4h]
 
-    if (!header)
-        MyAssertHandler(".\\database\\db_assetnames.cpp", 590, 0, "%s", "header");
-    if (!DB_XAssetGetNameHandler[type])
-        MyAssertHandler(".\\database\\db_assetnames.cpp", 591, 0, "%s", "DB_XAssetGetNameHandler[type]");
-    if (!header->data)
-        MyAssertHandler(".\\database\\db_assetnames.cpp", 592, 0, "%s", "header->data");
+    iassert(header);
+    iassert(DB_XAssetGetNameHandler[type]);
+    iassert(header->data);
     name = DB_XAssetGetNameHandler[type](header);
-    if (!name)
-    {
-        v2 = va("Name not found for asset type %s\n", g_assetNames[type]);
-        MyAssertHandler(".\\database\\db_assetnames.cpp", 594, 0, "%s\n\t%s", "name", v2);
-    }
+    vassert(name, "%s", va("Name not found for asset type %s\n", g_assetNames[type]));
     return name;
 }
 
@@ -241,22 +234,19 @@ const char *__cdecl DB_GetXAssetName(const XAsset *asset)
 
 void __cdecl DB_SetXAssetName(XAsset *asset, const char *name)
 {
-    if (!DB_XAssetSetNameHandler[asset->type])
-        MyAssertHandler(".\\database\\db_assetnames.cpp", 608, 0, "%s", "DB_XAssetSetNameHandler[asset->type]");
+    iassert(DB_XAssetSetNameHandler[asset->type]);
     DB_XAssetSetNameHandler[asset->type](&asset->header, name);
 }
 
 int32_t __cdecl DB_GetXAssetTypeSize(int32_t type)
 {
-    if (!DB_GetXAssetSizeHandler[type])
-        MyAssertHandler(".\\database\\db_assetnames.cpp", 615, 0, "%s", "DB_GetXAssetSizeHandler[type]");
+    iassert(DB_GetXAssetSizeHandler[type]);
     return DB_GetXAssetSizeHandler[type]();
 }
 
 const char *__cdecl DB_GetXAssetTypeName(uint32_t type)
 {
-    if (type > 0x20)
-        MyAssertHandler(".\\database\\db_assetnames.cpp", 621, 0, "%s", "type >= 0 && type < ASSET_TYPE_COUNT");
+    iassert(type >= 0 && type < ASSET_TYPE_COUNT);
     return g_assetNames[type];
 }
 

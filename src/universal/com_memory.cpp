@@ -974,15 +974,24 @@ int Hunk_SetMarkLow()
     return hunk_low.permanent;
 }
 
+void __cdecl Hunk_OverrideDataForFile(int32_t type, const char* name, void* data)
+{
+    fileData_s* searchFileData; // [esp+4h] [ebp-4h]
 
-
-
-
-
-
-
-
-
+    iassert(Sys_IsMainThread());
+    for (searchFileData = com_fileDataHashTable[FS_HashFileName(name, 1024)];
+        searchFileData;
+        searchFileData = searchFileData->next)
+    {
+        if (searchFileData->type == type && !I_stricmp(searchFileData->name, name))
+        {
+            searchFileData->data = data;
+            return;
+        }
+    }
+    if (!alwaysfails)
+        MyAssertHandler(__FILE__, __LINE__, 0, "Hunk_OverrideDataForFile: could not find data");
+}
 
 static char* __cdecl Z_TryMallocGarbage(int32_t size, const char* name, int32_t type)
 {

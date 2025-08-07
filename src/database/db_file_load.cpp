@@ -8,6 +8,8 @@
 #include <gfx_d3d/r_image.h>
 #include <gfx_d3d/r_buffers.h>
 
+#define FILE_BUFFER_SIZE 262144
+
 //uint32_t volatile g_loadingAssets      828e3f3c     db_file_load.obj
 //int32_t marker_db_file_load  828e3f40     db_file_load.obj
 
@@ -43,8 +45,7 @@ void __cdecl DB_CancelLoadXFile()
         while (g_load.outstandingReads)
             DB_WaitXFileStage();
         DB_AuthLoad_InflateEnd(&g_load.stream);
-        if (!g_load.f)
-            MyAssertHandler(".\\database\\db_file_load.cpp", 165, 0, "%s", "g_load.f");
+        iassert(g_load.f);
         CloseHandle(g_load.f);
     }
 }
@@ -53,14 +54,12 @@ int32_t DB_WaitXFileStage()
 {
     int32_t result; // eax
 
-    if (!g_load.f)
-        MyAssertHandler(".\\database\\db_file_load.cpp", 278, 0, "%s", "g_load.f");
-    if (g_load.outstandingReads <= 0)
-        MyAssertHandler(".\\database\\db_file_load.cpp", 280, 0, "%s", "g_load.outstandingReads > 0");
+    iassert(g_load.f);
+    iassert(g_load.outstandingReads > 0);
     --g_load.outstandingReads;
     SleepEx(0xFFFFFFFF, 1);
     result = InterlockedIncrement(&g_loadedSize);
-    g_load.stream.avail_in += 0x40000;
+    g_load.stream.avail_in += FILE_BUFFER_SIZE;
     return result;
 }
 
@@ -80,8 +79,7 @@ double __cdecl DB_GetLoadedFraction()
         return 0.0;
     totalBytesInternal = (double)g_totalSize * 262144.0;
     loadedBytesInternal = (double)g_loadedSize * 262144.0;
-    if (loadedBytesInternal < 0.0)
-        MyAssertHandler(".\\database\\db_file_load.cpp", 341, 0, "%s", "loadedBytesInternal >= 0");
+    iassert(loadedBytesInternal >= 0);
     if (totalBytesInternal < loadedBytesInternal)
         loadedBytesInternal = totalBytesInternal;
     totalBytesExternal = (double)g_totalExternalBytes;
@@ -96,12 +94,9 @@ void __cdecl DB_LoadXFileData(uint8_t *pos, uint32_t size)
     const char *v2; // eax
     uint32_t err; // [esp+0h] [ebp-4h]
 
-    if (!size)
-        MyAssertHandler(".\\database\\db_file_load.cpp", 366, 0, "%s", "size");
-    if (!g_load.f)
-        MyAssertHandler(".\\database\\db_file_load.cpp", 368, 0, "%s", "g_load.f");
-    if (g_load.stream.avail_out)
-        MyAssertHandler(".\\database\\db_file_load.cpp", 369, 0, "%s", "!g_load.stream.avail_out");
+    iassert(size);
+    iassert(g_load.f);
+    iassert(!g_load.stream.avail_out);
     g_load.stream.next_out = pos;
     g_load.stream.avail_out = size;
     while (1)
@@ -117,23 +112,13 @@ void __cdecl DB_LoadXFileData(uint8_t *pos, uint32_t size)
         }
         if (g_load.f)
         {
-            if ((uint32_t)(g_load.stream.next_in - g_load.compressBufferStart) > 0x80000)
-                MyAssertHandler(
-                    ".\\database\\db_file_load.cpp",
-                    392,
-                    0,
-                    "%s",
-                    "static_cast< unsigned >( g_load.stream.next_in - g_load.compressBufferStart ) <= FILE_BUFFER_SIZE * 2");
+            iassert(static_cast< unsigned >( g_load.stream.next_in - g_load.compressBufferStart ) <= FILE_BUFFER_SIZE * 2);
             if (g_load.stream.next_in == g_load.compressBufferEnd)
                 g_load.stream.next_in = g_load.compressBufferStart;
         }
         if (!g_load.stream.avail_out)
             break;
-        if (err)
-        {
-            v2 = va("Invalid fast file '%s' (%d != Z_OK)", g_load.filename, err);
-            MyAssertHandler(".\\database\\db_file_load.cpp", 402, 0, "%s\n\t%s", "err == Z_OK", v2);
-        }
+        vassert(err == Z_OK, "%s", va("Invalid fast file '%s' (%d != Z_OK)", g_load.filename, err));
     LABEL_19:
         DB_WaitXFileStage();
         DB_ReadXFileStage();
@@ -144,8 +129,7 @@ void DB_ReadXFileStage()
 {
     if (g_load.f)
     {
-        if (g_load.outstandingReads)
-            MyAssertHandler(".\\database\\db_file_load.cpp", 254, 0, "%s", "!g_load.outstandingReads");
+        iassert(!g_load.outstandingReads);
         if (!DB_ReadData() && GetLastError() != 38)
             Com_Error(ERR_DROP, "Read error of file '%s'", g_load.filename);
     }
@@ -155,18 +139,16 @@ int32_t __cdecl DB_ReadData()
 {
     uint8_t *fileBuffer; // [esp+0h] [ebp-4h]
 
-    if (!g_load.compressBufferStart)
-        MyAssertHandler(".\\database\\db_file_load.cpp", 188, 0, "%s", "g_load.compressBufferStart");
-    if (!g_load.f)
-        MyAssertHandler(".\\database\\db_file_load.cpp", 189, 0, "%s", "g_load.f");
+    iassert(g_load.compressBufferStart);
+    iassert(g_load.f);
     if (g_load.interrupt)
         g_load.interrupt();
-    fileBuffer = &g_load.compressBufferStart[g_load.overlapped.Offset % 0x80000];
+    fileBuffer = &g_load.compressBufferStart[g_load.overlapped.Offset % (FILE_BUFFER_SIZE * 2)];
     Sys_WaitDatabaseThread();
-    if (!ReadFileEx(g_load.f, fileBuffer, 0x40000u, &g_load.overlapped, (LPOVERLAPPED_COMPLETION_ROUTINE)DB_FileReadCompletion))
+    if (!ReadFileEx(g_load.f, fileBuffer, FILE_BUFFER_SIZE, &g_load.overlapped, (LPOVERLAPPED_COMPLETION_ROUTINE)DB_FileReadCompletion))
         return 0;
     ++g_load.outstandingReads;
-    g_load.overlapped.Offset += 0x40000;
+    g_load.overlapped.Offset += FILE_BUFFER_SIZE;
     return 1;
 }
 
@@ -220,8 +202,7 @@ void __cdecl DB_LoadXFileInternal()
         Com_Error(ERR_DROP, "Fastfile for zone '%s' is empty.", g_load.filename);
     DB_WaitXFileStage();
     DB_ReadXFileStage();
-    if (g_load.stream.avail_in < 8)
-        MyAssertHandler(".\\database\\db_file_load.cpp", 598, 0, "%s", "sizeof( magic ) <= g_load.stream.avail_in");
+    iassert(sizeof( magic ) <= g_load.stream.avail_in);
     *(uint32_t *)magic = *(uint32_t *)g_load.stream.next_in;
     *(uint32_t *)&magic[4] = *((uint32_t *)g_load.stream.next_in + 1);
     g_load.stream.next_in += 8;
@@ -272,7 +253,7 @@ void __cdecl DB_LoadXFileInternal()
         fileSize = GetFileSize(g_load.f, 0);
         if (file.externalSize + fileSize >= 0x100000)
         {
-            g_totalSize = (fileSize + 0x3FFFF) / 0x40000 - g_loadedSize;
+            g_totalSize = (fileSize + (FILE_BUFFER_SIZE - 1)) / FILE_BUFFER_SIZE - g_loadedSize;
             g_loadedSize = 0;
             g_totalExternalBytes = file.externalSize - g_loadedExternalBytes;
             g_loadedExternalBytes = 0;
@@ -349,22 +330,18 @@ void __cdecl DB_LoadXFile(
     uint8_t *buf,
     int32_t allocType)
 {
-    if (((uintptr_t)buf & 3) != 0)
-        MyAssertHandler(".\\database\\db_file_load.cpp", 749, 0, "%s", "!(reinterpret_cast< psize_int >( buf ) & 3)");
+    iassert(!(reinterpret_cast<uintptr_t>(buf) & 3));
     memset((uint8_t *)&g_load, 0, sizeof(g_load));
     g_load.f = f;
     g_load.filename = filename;
     g_load.zoneMem = zoneMem;
     g_load.interrupt = interrupt;
     g_load.allocType = allocType;
-    if (g_load.compressBufferStart)
-        MyAssertHandler(".\\database\\db_file_load.cpp", 762, 0, "%s", "!g_load.compressBufferStart");
-    if (!g_load.f)
-        MyAssertHandler(".\\database\\db_file_load.cpp", 764, 0, "%s", "g_load.f");
-    if (!buf)
-        MyAssertHandler(".\\database\\db_file_load.cpp", 766, 0, "%s", "buf");
+    iassert(!g_load.compressBufferStart);
+    iassert(g_load.f);
+    iassert(buf);
     g_load.compressBufferStart = buf;
-    g_load.compressBufferEnd = buf + 0x80000;
+    g_load.compressBufferEnd = buf + (FILE_BUFFER_SIZE * 2);
     g_load.stream.next_in = buf;
     g_load.stream.avail_in = 0;
 }
