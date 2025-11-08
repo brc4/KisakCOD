@@ -1872,9 +1872,8 @@ mnode_t *__cdecl R_SortNodes_r(mnode_load_t *node, mnode_t *out)
 
         out->rightChildOffset = ((char*)outb - (char*)out) / 2;
 
-        // lwss: this can't be hit
-//        if (out->rightChildOffset != (outb - out) >> 1)
-//            Com_Error(ERR_DROP, "Max cells exceeded");
+        if (out->rightChildOffset != (outb - out) >> 1)
+            Com_Error(ERR_DROP, "Max cells exceeded");
 
         return R_SortNodes_r(&rgl.nodes[node->children[1]], outb);
     }
@@ -3561,10 +3560,9 @@ unsigned __int8 *R_LoadWorldRuntime()
                 20);
     }
     if (s_world.dpvs.smodelCount)
-        v5 = Hunk_Alloc(8 * s_world.dpvs.smodelVisDataCount, "R_InitDynamicData", 21);
+        s_world.dpvs.lodData = (unsigned int*)Hunk_Alloc(8 * s_world.dpvs.smodelVisDataCount, "R_InitDynamicData", 21);
     else
-        v5 = 0;
-    s_world.dpvs.lodData = (unsigned int*)v5;
+        s_world.dpvs.lodData = 0;
     s_world.dpvs.staticSurfaceCount = s_world.models->surfaceCount;
     s_world.dpvs.staticSurfaceCountNoDecal = s_world.models->surfaceCountNoDecal;
     if (s_world.dpvs.staticSurfaceCount)
